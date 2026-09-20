@@ -1,60 +1,124 @@
-/**
- * User Service
- * Business Logic Layer (BLL) encapsulating business rules, validations, and orchestration.
- */
-
-import { userRepository } from '../repositories/userRepository.js';
-import { UserModel } from '../models/userModel.js';
+import bcrypt from 'bcryptjs';
+import userRepository from '../repositories/userRepository.js';
 
 export class UserService {
-  constructor(repository = userRepository) {
-    this.repository = repository;
+  async listUsers({ page = 1, limit = 50, search = '', role = '', departmentId = null } = {}) {
+    const skip = (Math.max(1, parseInt(page, 10)) - 1) * parseInt(limit, 10);
+    const take = Math.min(100, Math.max(1, parseInt(limit, 10)));
+
+    const where = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search } },
+        { email: { contains: search } },
+        { employeeId: { contains: search } },
+      ];
+    }
+    if (role) {
+      where.role = { name: role };
+    }
+    if (departmentId) {
+      where.departmentId = parseInt(departmentId, 10);
+    }
+
+    const [users, total] = await Promise.all([
+      userRepository.findMany({ skip, take, where }),
+      userRepository.count(where),
+    ]);
+
+    return {
+      users,
+      pagination: {
+        page: parseInt(page, 10),
+        limit: take,
+        total,
+        totalPages: Math.ceil(total / take),
+      },
+    };
   }
 
-  async getAllUsers() {
-    return await this.repository.findAll();
+  async searchUsers(query, limit = 20) {
+    if (!query || query.trim() === '') {
+      return [];
+    }
+    return userRepository.search(query.trim(), { take: Math.min(50, parseInt(limit, 10)) });
   }
 
   async getUserById(id) {
-    const user = await this.repository.findById(id);
+    const user = await userRepository.findById(parseInt(id, 10));
     if (!user) {
-      const error = new Error(`User with ID '${id}' not found`);
-      error.statusCode = 404;
-      throw error;
+      const err = new Error('User not found');
+      err.statusCode = 404;
+      throw err;
     }
     return user;
   }
 
-  async createUser(userData) {
-    // 1. Validate entity structure using Model rules
-    const validation = UserModel.validate(userData);
-    if (!validation.isValid) {
-      const error = new Error(validation.errors.join(', '));
-      error.statusCode = 400;
-      throw error;
+  async createUser({ name, email, employeeId, mobile, departmentId, roleId, roleName, password, status = 'ACTIVE' }) {
+    if (!name || !email || !employeeId) {
+      const err = new Error('Name, Email, and Employee ID are required');
+      err.statusCode = 400;
+      throw err;
     }
 
-    // 2. Enforce business rules (e.g., duplicate email check)
-    const existingUser = await this.repository.findByEmail(userData.email);
-    if (existingUser) {
-      const error = new Error('A user with this email address already exists');
-      error.statusCode = 409;
-      throw error;
+    let finalRoleId = roleId ? parseInt(roleId, 10) : null;
+    if (!finalRoleId && roleName) {
+      const roleObj = await userRepository.findRoleByName(roleName);
+      if (roleObj) finalRoleId = roleObj.id;
+    }
+    if (!finalRoleId) {
+      const defaultRole = await userRepository.findRoleByName('EMPLOYEE');
+      finalRoleId = defaultRole.id;
     }
 
-    // 3. Persist via repository
-    return await this.repository.create({
-      name: userData.name.trim(),
-      email: userData.email.trim().toLowerCase(),
-      role: userData.role || 'User',
+    const initialPassword = password || 'Kims@123';
+    const passwordHash = await bcrypt.hash(initialPassword, 10);
+
+    return userRepository.create({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      employeeId: employeeId.trim().toUpperCase(),
+      mobile: mobile ? mobile.trim() : null,
+      departmentId: departmentId ? parseInt(departmentId, 10) : null,
+      roleId: finalRoleId,
+      passwordHash,
+      status: status || 'ACTIVE',
     });
   }
 
-  async deleteUser(id) {
-    // Verify existence first
-    await this.getUserById(id);
-    return await this.repository.deleteById(id);
+  async updateUser(id, { name, email, employeeId, mobile, departmentId, roleId, roleName, password, status }) {
+    const existing = await userRepository.findById(parseInt(id, 10));
+    if (!existing) {
+      const err = new Error('User not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (email !== undefined) updateData.email = email.trim().toLowerCase();
+    if (employeeId !== undefined) updateData.employeeId = employeeId.trim().toUpperCase();
+    if (mobile !== undefined) updateData.mobile = mobile ? mobile.trim() : null;
+    if (departmentId !== undefined) updateData.departmentId = departmentId ? parseInt(departmentId, 10) : null;
+    if (status !== undefined) updateData.status = status;
+
+    if (roleId) {
+      updateData.roleId = parseInt(roleId, 10);
+    } else if (roleName) {
+      const roleObj = await userRepository.findRoleByName(roleName);
+      if (roleObj) updateData.roleId = roleObj.id;
+    }
+
+    if (password) {
+      updateData.passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    return userRepository.update(parseInt(id, 10), updateData);
+  }
+
+  async getRoles() {
+    return userRepository.findRoles();
   }
 }
 
-export const userService = new UserService();
+export default new UserService();

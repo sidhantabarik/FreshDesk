@@ -1,64 +1,61 @@
-/**
- * User Controller
- * Presentation/Controller Layer responsible for handling HTTP requests & responses.
- */
-
-import { userService } from '../services/userService.js';
+import userService from '../services/userService.js';
 
 export class UserController {
-  constructor(service = userService) {
-    this.service = service;
+  async list(req, res, next) {
+    try {
+      const { page, limit, search, role, departmentId } = req.query;
+      const result = await userService.listUsers({ page, limit, search, role, departmentId });
+      res.json({ success: true, data: result.users, pagination: result.pagination });
+    } catch (error) {
+      next(error);
+    }
   }
 
-  getUsers = async (req, res, next) => {
+  async search(req, res, next) {
     try {
-      const users = await this.service.getAllUsers();
-      res.status(200).json({
-        success: true,
-        count: users.length,
-        data: users,
-      });
+      const { q, limit } = req.query;
+      const users = await userService.searchUsers(q, limit);
+      res.json({ success: true, data: users });
     } catch (error) {
       next(error);
     }
-  };
+  }
 
-  getUserById = async (req, res, next) => {
+  async getById(req, res, next) {
     try {
-      const user = await this.service.getUserById(req.params.id);
-      res.status(200).json({
-        success: true,
-        data: user,
-      });
+      const user = await userService.getUserById(req.params.id);
+      res.json({ success: true, data: user });
     } catch (error) {
       next(error);
     }
-  };
+  }
 
-  createUser = async (req, res, next) => {
+  async create(req, res, next) {
     try {
-      const newUser = await this.service.createUser(req.body);
-      res.status(201).json({
-        success: true,
-        message: 'User created successfully',
-        data: newUser,
-      });
+      const user = await userService.createUser(req.body);
+      res.status(201).json({ success: true, data: user });
     } catch (error) {
       next(error);
     }
-  };
+  }
 
-  deleteUser = async (req, res, next) => {
+  async update(req, res, next) {
     try {
-      await this.service.deleteUser(req.params.id);
-      res.status(200).json({
-        success: true,
-        message: `User with ID '${req.params.id}' deleted successfully`,
-      });
+      const user = await userService.updateUser(req.params.id, req.body);
+      res.json({ success: true, data: user });
     } catch (error) {
       next(error);
     }
-  };
+  }
+
+  async getRoles(req, res, next) {
+    try {
+      const roles = await userService.getRoles();
+      res.json({ success: true, data: roles });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
-export const userController = new UserController();
+export default new UserController();

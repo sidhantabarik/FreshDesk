@@ -1,39 +1,105 @@
-import React, { useState } from 'react';
-import Navbar from './components/Navbar';
-import ArchitectureCard from './components/ArchitectureCard';
-import UserManagement from './components/UserManagement';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import { ToastProvider } from './context/ToastContext.jsx';
+import AppLayout from './components/layout/AppLayout.jsx';
+
+import Login from './pages/Login.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Tickets from './pages/Tickets.jsx';
+import MyTickets from './pages/MyTickets.jsx';
+import CreateTicket from './pages/CreateTicket.jsx';
+import TicketDetails from './pages/TicketDetails.jsx';
+import TicketLogs from './pages/TicketLogs.jsx';
+import Reports from './pages/Reports.jsx';
+import Settings from './pages/Settings.jsx';
+
+import Users from './pages/admin/Users.jsx';
+import Departments from './pages/admin/Departments.jsx';
+import Groups from './pages/admin/Groups.jsx';
+import Agents from './pages/admin/Agents.jsx';
+import TicketTypes from './pages/admin/TicketTypes.jsx';
+
+function AdminRoute({ children }) {
+  const { user, isAdmin } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+  return children;
+}
 
 export default function App() {
-  const [serverStatus, setServerStatus] = useState('checking');
-
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
-      <Navbar serverStatus={serverStatus} />
+    <ToastProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Hero Section */}
-        <section className="text-center py-6 space-y-3">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold">
-            <span>✨ Complete Full-Stack Boilerplate</span>
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white">
-            React + Vite + Tailwind <span className="gradient-text">v4</span> + Node.js
-          </h1>
-          <p className="max-w-2xl mx-auto text-sm sm:text-base text-slate-400">
-            Engineered with a clean layered backend (Controllers, Services, Repositories, Models) and ready to push to GitHub.
-          </p>
-        </section>
+          {/* Protected Application Layout */}
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/tickets" element={<Tickets />} />
+            <Route path="/tickets/my" element={<MyTickets />} />
+            <Route path="/tickets/create" element={<CreateTicket />} />
+            <Route path="/tickets/logs" element={<TicketLogs />} />
+            <Route path="/tickets/:id" element={<TicketDetails />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
 
-        {/* Architecture Diagram */}
-        <ArchitectureCard />
+            {/* Admin Master Data Routes */}
+            <Route
+              path="/admin/users"
+              element={
+                <AdminRoute>
+                  <Users />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/departments"
+              element={
+                <AdminRoute>
+                  <Departments />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/groups"
+              element={
+                <AdminRoute>
+                  <Groups />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/agents"
+              element={
+                <AdminRoute>
+                  <Agents />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/ticket-types"
+              element={
+                <AdminRoute>
+                  <TicketTypes />
+                </AdminRoute>
+              }
+            />
+          </Route>
 
-        {/* Live CRUD Component */}
-        <UserManagement onStatusChange={setServerStatus} />
-      </main>
-
-      <footer className="border-t border-slate-800/80 glass-panel py-6 text-center text-xs text-slate-500">
-        <p>FreshDesk Full-Stack Setup • Built with React, Vite, Tailwind CSS v4 & Node.js Express</p>
-      </footer>
-    </div>
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+    </ToastProvider>
   );
 }

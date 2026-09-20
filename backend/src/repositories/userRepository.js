@@ -1,44 +1,139 @@
-/**
- * User Repository
- * Data Access Layer (DAL) responsible for interacting directly with the database / data source.
- */
-
-import { UserModel } from '../models/userModel.js';
-
-// In-memory data store for demonstration (easily replaced with database queries e.g. Mongoose, Prisma, pg, etc.)
-let usersDatabase = [
-  new UserModel({ id: '1', name: 'Alice Johnson', email: 'alice@example.com', role: 'Admin' }),
-  new UserModel({ id: '2', name: 'Bob Smith', email: 'bob@example.com', role: 'Developer' }),
-  new UserModel({ id: '3', name: 'Carol Williams', email: 'carol@example.com', role: 'Designer' }),
-];
+import { prisma } from '../config/database.js';
 
 export class UserRepository {
-  async findAll() {
-    return usersDatabase;
+  async findByEmail(email) {
+    return prisma.user.findUnique({
+      where: { email },
+      include: {
+        role: true,
+        department: true,
+      },
+    });
+  }
+
+  async findByEmployeeId(employeeId) {
+    return prisma.user.findUnique({
+      where: { employeeId },
+      include: {
+        role: true,
+        department: true,
+      },
+    });
   }
 
   async findById(id) {
-    return usersDatabase.find((user) => user.id === id) || null;
-  }
-
-  async findByEmail(email) {
-    return usersDatabase.find((user) => user.email.toLowerCase() === email.toLowerCase()) || null;
-  }
-
-  async create(userData) {
-    const newUser = new UserModel({
-      id: String(Date.now()),
-      ...userData,
+    return prisma.user.findUnique({
+      where: { id },
+      include: {
+        role: true,
+        department: true,
+        agentGroups: {
+          include: {
+            group: true,
+          },
+        },
+      },
     });
-    usersDatabase.push(newUser);
-    return newUser;
   }
 
-  async deleteById(id) {
-    const initialLength = usersDatabase.length;
-    usersDatabase = usersDatabase.filter((user) => user.id !== id);
-    return usersDatabase.length < initialLength;
+  async create(data) {
+    return prisma.user.create({
+      data,
+      include: {
+        role: true,
+        department: true,
+      },
+    });
+  }
+
+  async update(id, data) {
+    return prisma.user.update({
+      where: { id },
+      data,
+      include: {
+        role: true,
+        department: true,
+      },
+    });
+  }
+
+  async findMany({ skip = 0, take = 50, where = {} } = {}) {
+    return prisma.user.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        employeeId: true,
+        mobile: true,
+        status: true,
+        departmentId: true,
+        roleId: true,
+        createdAt: true,
+        updatedAt: true,
+        department: {
+          select: { id: true, name: true },
+        },
+        role: {
+          select: { id: true, name: true, description: true },
+        },
+        agentGroups: {
+          select: {
+            group: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async count(where = {}) {
+    return prisma.user.count({ where });
+  }
+
+  async search(query, { take = 20 } = {}) {
+    return prisma.user.findMany({
+      where: {
+        OR: [
+          { name: { contains: query } },
+          { email: { contains: query } },
+          { employeeId: { contains: query } },
+        ],
+      },
+      take,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        employeeId: true,
+        mobile: true,
+        status: true,
+        department: {
+          select: { id: true, name: true },
+        },
+        role: {
+          select: { id: true, name: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async findRoles() {
+    return prisma.role.findMany({
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  async findRoleByName(name) {
+    return prisma.role.findUnique({
+      where: { name },
+    });
   }
 }
 
-export const userRepository = new UserRepository();
+export default new UserRepository();
